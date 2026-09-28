@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Task Desk - a thin UI over the Task API. No build step; talks to the same origin. */
+  :root {
+    --bg: #e8edf1; --surface: #ffffff; --ink: #14202b; --muted: #596776; --line: #d3dbe2;
+    --todo: #5b6b7c; --wip: #c27b0e; --done: #2b7a4b; --late: #b3261e; --accent: #16324f;
+    --high: #b3261e; --medium: #c27b0e; --low: #5b6b7c;
+    font-family: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.45; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+
+  /* Signature element: one bar showing where every task stands */
+  .board { background: var(--accent); color: #fff; border-radius: 14px; padding: 18px 20px 16px; }
+  .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: rgba(255,255,255,.15); }
+  .bar span { display: block; transition: width .35s ease; }
+  .bar .b-todo { background: #9fb1c3; } .bar .b-wip { background: #f0b04a; } .bar .b-done { background: #63c08a; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 12px; font-size: .92rem; }
+  .legend b { font-size: 1.25rem; font-weight: 700; margin-right: 5px; }
+  .legend .late b { color: #ffb4ab; }
+
+  form.new { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; margin: 18px 0; }
+  input, select, button { font: inherit; }
+  input, select { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-width: 0; }
+  button { cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: 700; }
+  button.ghost { background: transparent; color: var(--accent); border-color: var(--line); padding: 5px 10px; font-weight: 500; font-size: .88rem; }
+  button.ghost:hover { border-color: var(--accent); }
+  button.danger:hover { border-color: var(--late); color: var(--late); }
+  :focus-visible { outline: 3px solid #4d90e0; outline-offset: 2px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs button { background: transparent; color: var(--ink); border-color: transparent; padding: 6px 12px; font-weight: 500; }
+  .tabs button[aria-pressed="true"] { background: var(--surface); border-color: var(--line); font-weight: 700; }
+
+  ul { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  li { display: grid; grid-template-columns: 6px 1fr auto; gap: 14px; padding: 14px 16px 14px 0; border-top: 1px solid var(--line); align-items: center; }
+  li:first-child { border-top: 0; }
+  .mark { align-self: stretch; }
+  .p-high { background: var(--high); } .p-medium { background: var(--medium); } .p-low { background: var(--low); }
+  .title { font-weight: 700; overflow-wrap: anywhere; }
+  li.done .title { text-decoration: line-through; color: var(--muted); }
+  .meta { color: var(--muted); font-size: .88rem; display: flex; gap: 4px 14px; flex-wrap: wrap; margin-top: 2px; }
+  .status { font-weight: 700; } .s-todo { color: var(--todo); } .s-in_progress { color: var(--wip); } .s-done { color: var(--done); }
+  .late { color: var(--late); font-weight: 700; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { padding: 34px 20px; text-align: center; color: var(--muted); background: var(--surface); }
+  #msg { min-height: 1.4em; margin: 10px 0 0; color: var(--late); font-weight: 500; }
+  @media (max-width: 620px) {
+    form.new { grid-template-columns: 1fr 1fr; } form.new input[name=title] { grid-column: 1 / -1; }
+    li { grid-template-columns: 6px 1fr; } .actions { grid-column: 2; justify-content: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Task Desk</h1>
+  <p class="sub">A small front end for the Task API. Data is kept in memory and resets when the server restarts.</p>
+
+  <section class="board" aria-label="Task summary">
+    <div class="bar" id="bar" role="img" aria-label="Tasks by status"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <form class="new" id="newForm">
+    <input name="title" placeholder="What needs doing?" aria-label="Task title" required maxlength="200">
+    <select name="priority" aria-label="Priority">
+      <option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option>
+    </select>
+    <input name="dueDate" type="date" aria-label="Due date">
+    <button type="submit">Add task</button>
+  </form>
+
+  <div class="tabs" id="tabs" role="group" aria-label="Filter by status"></div>
+  <div id="list"></div>
+  <p id="msg" role="alert"></p>
+</main>
+
+<script>
+  // ---- tiny API client -----------------------------------------------------
+  // Every call goes to the same origin, so this works locally and when deployed.
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+
+  const LABELS = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
+  let filter = 'all';
+  const $ = (id) => document.getElementById(id);
+  const say = (text = '') => { $('msg').textContent = text; };
+
+  // Build DOM with textContent (never innerHTML) so task titles can't inject HTML.
+  function el(tag, props = {}, ...kids) {
+    const node = Object.assign(document.createElement(tag), props);
+    kids.forEach((k) => node.append(k));
+    return node;
+  }
+
+  async function run(fn) {
+    try { say(); await fn(); } catch (e) { say(e.message); }
+    await refresh();
+  }
+
+  function renderStats(s) {
+    const total = s.todo + s.in_progress + s.done;
+    const pct = (n) => (total ? (n / total) * 100 : 0) + '%';
+    $('bar').replaceChildren(
+      el('span', { className: 'b-done', style: `width:${pct(s.done)}` }),
+      el('span', { className: 'b-wip', style: `width:${pct(s.in_progress)}` }),
+      el('span', { className: 'b-todo', style: `width:${pct(s.todo)}` }),
+    );
+    const item = (n, label, cls = '') => el('span', { className: cls }, el('b', { textContent: n }), label);
+    $('legend').replaceChildren(
+      item(s.todo, 'to do'), item(s.in_progress, 'in progress'), item(s.done, 'done'),
+      item(s.overdue, 'overdue', 'late'),
+    );
+  }
+
+  function renderTabs() {
+    $('tabs').replaceChildren(...['all', 'todo', 'in_progress', 'done'].map((key) => {
+      const b = el('button', { textContent: key === 'all' ? 'All' : LABELS[key] });
+      b.setAttribute('aria-pressed', String(filter === key));
+      b.onclick = () => { filter = key; refresh(); };
+      return b;
+    }));
+  }
+
+  function renderTask(t) {
+    const overdue = t.dueDate && t.status !== 'done' && new Date(t.dueDate) < new Date();
+    const meta = el('div', { className: 'meta' },
+      el('span', { className: `status s-${t.status}`, textContent: LABELS[t.status] }),
+      el('span', { textContent: `${t.priority} priority` }),
+    );
+    if (t.dueDate) {
+      meta.append(el('span', { className: overdue ? 'late' : '', textContent:
+        `${overdue ? 'Overdue: ' : 'Due '}${new Date(t.dueDate).toLocaleDateString()}` }));
+    }
+    meta.append(el('span', { textContent: t.assignee ? `Assigned to ${t.assignee}` : 'Unassigned' }));
+
+    const actions = el('div', { className: 'actions' });
+    if (t.status === 'todo') {
+      actions.append(el('button', { className: 'ghost', textContent: 'Start',
+        onclick: () => run(() => api(`/tasks/${t.id}`, { method: 'PUT', body: JSON.stringify({ status: 'in_progress' }) })) }));
+    }
+    if (t.status !== 'done') {
+      actions.append(el('button', { className: 'ghost', textContent: 'Complete',
+        onclick: () => run(() => api(`/tasks/${t.id}/complete`, { method: 'PATCH' })) }));
+    }
+    actions.append(
+      el('button', { className: 'ghost', textContent: t.assignee ? 'Reassign' : 'Assign',
+        onclick: () => {
+          const name = window.prompt('Assign to (name):', t.assignee || '');
+          if (name === null) return; // cancelled
+          run(() => api(`/tasks/${t.id}/assign`, { method: 'PATCH', body: JSON.stringify({ assignee: name }) }));
+        } }),
+      el('button', { className: 'ghost danger', textContent: 'Delete',
+        onclick: () => { if (window.confirm(`Delete "${t.title}"?`)) run(() => api(`/tasks/${t.id}`, { method: 'DELETE' })); } }),
+    );
+
+    return el('li', { className: t.status === 'done' ? 'done' : '' },
+      el('span', { className: `mark p-${t.priority}` }),
+      el('div', {}, el('div', { className: 'title', textContent: t.title }), meta),
+      actions);
+  }
+
+  async function refresh() {
+    renderTabs();
+    try {
+      const [stats, tasks] = await Promise.all([
+        api('/tasks/stats'),
+        api(filter === 'all' ? '/tasks' : `/tasks?status=${filter}`),
+      ]);
+      renderStats(stats);
+      $('list').replaceChildren(tasks.length
+        ? el('ul', {}, ...tasks.map(renderTask))
+        : el('div', { className: 'empty', textContent: filter === 'all'
+            ? 'No tasks yet. Add your first one above.' : `Nothing in "${LABELS[filter]}".` }));
+    } catch (e) { say(e.message); }
+  }
+
+  $('newForm').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const f = new FormData(ev.target);
+    const body = { title: f.get('title'), priority: f.get('priority') };
+    if (f.get('dueDate')) body.dueDate = new Date(f.get('dueDate') + 'T23:59:59').toISOString();
+    run(async () => { await api('/tasks', { method: 'POST', body: JSON.stringify(body) }); ev.target.reset(); });
+  });
+
+  refresh();
+</script>
+</body>
+</html>

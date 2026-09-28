@@ -1,0 +1,10 @@
+# Render Blueprint: deploys API + UI as a single Node web service.
+services:
+  - type: web
+    name: task-desk
+    runtime: node
+    rootDir: task-api
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free

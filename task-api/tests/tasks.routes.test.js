@@ -264,3 +264,11 @@ describe('unknown routes', () => {
     expect(res.body.error).toBeDefined();
   });
 });
+
+describe('error handling', () => {
+  test('oversized body is reported as a 4xx (not a 500)', async () => {
+    const res = await request(app).post('/tasks').send({ title: 'x', description: 'a'.repeat(200 * 1024) });
+    expect(res.status).toBe(413);
+    expect(res.body.error).toBeDefined();
+  });
+});
