@@ -69,6 +69,13 @@ const update = (id, fields) => {
   });
 
   const updated = { ...tasks[index], ...allowed };
+
+  // FIX for BUG #7: keep completedAt consistent with status. Moving a task to
+  // "done" via PUT stamps it (once); moving it back out of "done" clears it.
+  if (allowed.status !== undefined && allowed.status !== tasks[index].status) {
+    updated.completedAt = allowed.status === 'done' ? new Date().toISOString() : null;
+  }
+
   tasks[index] = updated;
   return updated;
 };
@@ -84,6 +91,9 @@ const remove = (id) => {
 const completeTask = (id) => {
   const task = findById(id);
   if (!task) return null;
+
+  // FIX for BUG #8: completing twice must not overwrite the original completedAt.
+  if (task.status === 'done') return task;
 
   // FIX for BUG #3: the original also forced `priority: 'medium'` here, silently
   // destroying the user's priority. Completing a task only changes status/completedAt.

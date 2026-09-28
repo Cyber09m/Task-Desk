@@ -147,6 +147,16 @@ describe('PUT /tasks/:id', () => {
   });
 });
 
+describe('PUT status transitions (HTTP)', () => {
+  test('[BUG] PUT status=done sets completedAt; PUT back to todo clears it', async () => {
+    const { body: t } = await createTask();
+    const done = await request(app).put(`/tasks/${t.id}`).send({ status: 'done' });
+    expect(done.body.completedAt).not.toBeNull();
+    const back = await request(app).put(`/tasks/${t.id}`).send({ status: 'todo' });
+    expect(back.body.completedAt).toBeNull();
+  });
+});
+
 describe('DELETE /tasks/:id', () => {
   test('204 and the task is gone', async () => {
     const { body: t } = await createTask();

@@ -4,6 +4,7 @@ Take-home assignment: **The Untested API**. Node.js, Express, Jest, Supertest, p
 
 - **Live app:** `<add your Render URL here>`
 - **API base:** same URL (e.g. `GET /tasks`)
+- **CI:** GitHub Actions runs the tests on Node 18/20/22 (`.github/workflows/ci.yml`)
 - **Bug report:** [BUG_REPORT.md](BUG_REPORT.md)  |  **Original brief:** [ASSIGNMENT.md](ASSIGNMENT.md)
 
 ## Run locally
@@ -12,7 +13,7 @@ Take-home assignment: **The Untested API**. Node.js, Express, Jest, Supertest, p
 cd task-api
 npm install
 npm start          # http://localhost:3000  (UI at /, API at /tasks)
-npm test           # 97 tests
+npm test           # 102 tests
 npm run coverage   # ~97% statements
 ```
 
@@ -20,9 +21,9 @@ npm run coverage   # ~97% statements
 
 | Part | Status |
 |------|--------|
-| Day 1 – unit + integration tests, 80%+ coverage | 97 tests, ~97% coverage (`task-api/tests/`) |
-| Part A – bug report | 6 bugs fixed, 6 more documented ([BUG_REPORT.md](BUG_REPORT.md)) |
-| Part B – fix a bug | Fixed bugs #1-#6 (each has a `[BUG]`-tagged test that failed before the fix) |
+| Day 1 – unit + integration tests, 80%+ coverage | 102 tests, ~97% coverage (`task-api/tests/`) |
+| Part A – bug report | 8 bugs fixed, 4 more documented ([BUG_REPORT.md](BUG_REPORT.md)) |
+| Part B – fix a bug | Fixed bugs #1-#8 (each has a `[BUG]`-tagged test that failed before the fix) |
 | Part C – `PATCH /tasks/:id/assign` | Implemented + tested |
 | Bonus – front end | `task-api/public/index.html`, served by Express (single deployable service) |
 

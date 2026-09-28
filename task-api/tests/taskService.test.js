@@ -175,6 +175,28 @@ describe('update', () => {
   });
 });
 
+describe('completedAt consistency on update', () => {
+  test('[BUG] PUT status -> done stamps completedAt', () => {
+    const t = service.create({ title: 'a' });
+    const u = service.update(t.id, { status: 'done' });
+    expect(Number.isNaN(Date.parse(u.completedAt))).toBe(false);
+  });
+
+  test('[BUG] moving a task out of done clears completedAt', () => {
+    const t = service.create({ title: 'a' });
+    service.update(t.id, { status: 'done' });
+    const u = service.update(t.id, { status: 'in_progress' });
+    expect(u.completedAt).toBeNull();
+  });
+
+  test('updating other fields of a done task keeps completedAt', () => {
+    const t = service.create({ title: 'a' });
+    const done = service.update(t.id, { status: 'done' });
+    const u = service.update(t.id, { title: 'renamed', status: 'done' });
+    expect(u.completedAt).toBe(done.completedAt);
+  });
+});
+
 describe('remove', () => {
   test('removes an existing task and returns true', () => {
     const t = service.create({ title: 'a' });
@@ -201,6 +223,20 @@ describe('completeTask', () => {
     const low = service.create({ title: 'l', priority: 'low' });
     expect(service.completeTask(high.id).priority).toBe('high');
     expect(service.completeTask(low.id).priority).toBe('low');
+  });
+
+  test('[BUG] completing twice keeps the original completedAt', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+      const t = service.create({ title: 'a' });
+      const first = service.completeTask(t.id);
+      jest.setSystemTime(new Date('2030-06-01T00:00:00.000Z'));
+      const second = service.completeTask(t.id);
+      expect(second.completedAt).toBe(first.completedAt);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('returns null for a missing task', () => {
